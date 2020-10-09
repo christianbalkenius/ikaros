@@ -1017,7 +1017,6 @@ Module::GetList(const char * n) // TODO: Check that this complicated procedure i
     return NULL; // No list value was found
 }
 
-
 const char * // FIXME: ***********************
 Module::GetDefault(const char * n)
 {
@@ -1069,7 +1068,6 @@ Module::GetDefault(const char * n)
     return NULL; // No default value was found
 }
 
-
 const char *
 Module::GetValue(const char * n)	// This function implements attribute inheritance with renaming through the parameter element
 {
@@ -1086,7 +1084,6 @@ Module::GetValue(const char * n)	// This function implements attribute inheritan
        
    return GetDefault(n);
 }
-
 
 float
 Module::GetFloatValue(const char * n, float d)
@@ -1108,7 +1105,6 @@ Module::GetIntValue(const char * n, int d)
     else
         return string_to_int(GetValue(n), d);
 }
-
 
 bool
 Module::GetBoolValue(const char * n, bool d) // TODO: Use above default
@@ -1149,7 +1145,6 @@ findindex(const char * name, const char * list)
     }
 }
 
-
 int
 Module::GetIntValueFromList(const char * n, const char * list)
 {
@@ -1178,13 +1173,11 @@ Module::GetIntValueFromList(const char * n, const char * list)
     }
 }
 
-
 float *
 Module::GetArray(const char * n, int & size, bool fixed_size)
 {
     return create_array(GetValue(n), size, fixed_size);
 }
-
 
 int *
 Module::GetIntArray(const char * n, int & size, bool fixed_size)
@@ -1448,7 +1441,7 @@ Module::GetInputSizeX(const char * input_name) // TODO: also used internally so 
         {
             if(i->sizex != unknown_size)
                 return i->sizex;
-            else if(kernel != NULL) // FIXME: remove these conditions and use exception handling here instead
+            else if(kernel != NULL)
                 return kernel->CalculateInputSizeX(i);
             else
                 break;
@@ -1679,7 +1672,7 @@ Module::GetSizeXFromList(const char * sizearg)
     while(input)
     {
         int new_sx = GetInputSizeX(input);
-        if(sx == unknown_size )
+        if(sx == unknown_size)
             sx = new_sx;
         else if(new_sx != unknown_size && new_sx != sx)
         {
@@ -2320,6 +2313,16 @@ Kernel::InitInputs()
             {
                 Notify(msg_fatal_error, "Failed to connect from \"%s\" of module \"%s\" (%s) because target is already connected with zero-delay.\n", c->source_io->name.c_str(), c->source_io->module->instance_name, c->source_io->module->GetClassName());
             }
+
+            // TEST ***********************
+
+            int sx = CalculateInputSizeX(c->target_io);
+            int sy = CalculateInputSizeY(c->target_io);
+            c->target_io->sizex = sx;
+            c->target_io->sizey = sy;
+            c->target_io->size = sx*sy;
+
+            /*
             // First connection to this target: initialize
             if(c->target_io->size == unknown_size)	// start calculation with size 0
                 c->target_io->size = 0;
@@ -2348,11 +2351,14 @@ Kernel::InitInputs()
             // Set connection variables
             c->target_offset = target_offset;
             c->size = c->source_io->size;
+
+            */
             // Allocate input memory and reset
             Notify(msg_debug, "Allocating memory for input \"%s\" of module \"%s\" with size %d (%dx%d).\n", c->target_io->name.c_str(), c->target_io->module->instance_name, c->target_io->size, c->target_io->sizex, c->target_io->sizey);
             c->target_io->SetSize(c->target_io->sizex, c->target_io->sizey);
             c->target_io->Allocate();
         }
+        /*
         else if(c->target_io) // fixed offset connection
         {
             Notify(msg_debug, "Adding fixed offset connection.\n");
@@ -2391,6 +2397,7 @@ Kernel::InitInputs()
             c->target_io->SetSize(c->target_io->sizex, c->target_io->sizey);
             c->target_io->Allocate();
         }
+        */
     }
 }
 
@@ -2822,12 +2829,16 @@ Kernel::CalculateInputSize(Module_IO * i)
     {
         if(c->target_io == i)
         {
-            if(c->source_io->size == unknown_size)
+            if(c->source_io->sizex == unknown_size)
                 return unknown_size;
+            else if(c->target_offset==-1 and c->size==-1) // no target offset; add source size to end
+                 s += c->source_io->size; // TODO: or sizex???
+            else if(c->target_offset==-1 and c->size>0) // no target offset; add specified size to end
+                 s += c->size;        
             else if(c->target_offset>0 || c->size>0) // offset connection
                 s = max(s, c->target_offset + c->size);
-            else
-                s += c->source_io->size;
+            else if(s == 0)
+                s +=  c->source_io->sizex;
         }
     }
     return s;
@@ -2848,16 +2859,21 @@ Kernel::CalculateInputSizeX(Module_IO * i)
         {
             if(c->source_io->sizex == unknown_size)
                 return unknown_size;
+            else if(c->target_offset==-1 and c->size==-1) // no target offset; add source size to end
+                 s += c->source_io->size; // TODO: or sizex???
+            else if(c->target_offset==-1 and c->size>0) // no target offset; add specified size to end
+                 s += c->size;        
             else if(c->target_offset>0 || c->size>0) // offset connection
                 s = max(s, c->target_offset + c->size);
             else if(s == 0)
-                s =  c->source_io->sizex;
+                s +=  c->source_io->sizex;
             else
                 return CalculateInputSize(i);
         }
     }
     return s;
 }
+
 
 int
 Kernel::CalculateInputSizeY(Module_IO * i)
@@ -3321,10 +3337,10 @@ Kernel::ConnectModules(GroupElement * group, std::string indent) // FIXME: remov
             int cnt = 0;
             if(starts_with(target, "."))
                 for(auto target_io : main_group->GetTargets(target.substr(1)))
-                    cnt += Connect(source_io, string_to_int(c["sourceoffset"]), target_io, string_to_int(c["targetoffset"]), string_to_int(c["size"], unknown_size), c["delay"], 0, string_to_bool(c["active"], true));
+                    cnt += Connect(source_io, string_to_int(c["sourceoffset"],-1), target_io, string_to_int(c["targetoffset"],-1), string_to_int(c["size"], unknown_size), c["delay"], 0, string_to_bool(c["active"], true));
             else
                 for(auto target_io : group->GetTargets(target))
-                    cnt += Connect(source_io, string_to_int(c["sourceoffset"]), target_io, string_to_int(c["targetoffset"]), string_to_int(c["size"], unknown_size), c["delay"], 0, string_to_bool(c["active"], true));
+                    cnt += Connect(source_io, string_to_int(c["sourceoffset"],-1), target_io, string_to_int(c["targetoffset"],-1), string_to_int(c["size"], unknown_size), c["delay"], 0, string_to_bool(c["active"], true));
 
             if(cnt == 0)
                 Notify(msg_fatal_error, "Connection target %s not found.\n", target.c_str());
