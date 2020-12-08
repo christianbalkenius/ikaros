@@ -120,7 +120,7 @@ Topology::SetOneToOne()
     if(input_array_size_y==input_array_size_y)
     {
         for(int j=0; j<input_array_size_y; j++)
-            for(int j=0; j<input_array_x; i++)
+            for(int i=0; i<input_array_size_x; i++)
                 output_matrix[j][i]=1.f;
     }
 }
